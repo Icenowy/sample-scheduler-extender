@@ -2,7 +2,6 @@ package controller
 
 import (
 	"log"
-	"math/rand"
 	"strings"
 
 	"k8s.io/api/core/v1"
@@ -10,17 +9,17 @@ import (
 )
 
 const (
-	LuckyPred        = "Lucky"
-	LuckyPredFailMsg = "Sorry, you're not lucky"
+	AvxPred        = "AVX"
+	AvxPredFailMsg = "Sorry, you are not powerful enough, buy a newer processor"
 )
 
 var predicatesFuncs = map[string]FitPredicate{
-	LuckyPred: LuckyPredicate,
+	AvxPred: AvxPredicate,
 }
 
 type FitPredicate func(pod *v1.Pod, node v1.Node) (bool, []string, error)
 
-var predicatesSorted = []string{LuckyPred}
+var predicatesSorted = []string{AvxPred}
 
 // filter 根据扩展程序定义的预选规则来过滤节点
 // it's webhooked to pkg/scheduler/core/generic_scheduler.go#findNodesThatFit()
@@ -62,12 +61,17 @@ func podFitsOnNode(pod *v1.Pod, node v1.Node) (bool, []string, error) {
 	return fits, failReasons, nil
 }
 
-func LuckyPredicate(pod *v1.Pod, node v1.Node) (bool, []string, error) {
-	lucky := rand.Intn(2) == 0
-	if lucky {
-		log.Printf("pod %v/%v is lucky to fit on node %v\n", pod.Name, pod.Namespace, node.Name)
-		return true, nil, nil
+func AvxPredicate(pod *v1.Pod, node v1.Node) (bool, []string, error) {
+	if strings.Contains(pod.Name, "-avx") {
+		if strings.Contains(node.Name, "p1620") {
+			// This is a Core 2, cannot do AVX
+			log.Printf("node %v is not powerful enough for pod %v/%v\n", node.Name, pod.Name, pod.Namespace)
+			return false, []string{AvxPredFailMsg}, nil
+		} else {
+			log.Printf("node %v is powerful enough for pod %v/%v\n", node.Name, pod.Name, pod.Namespace)
+		}
+	} else {
+		log.Printf("pod %v/%v doesn't need power, so node %v can go\n", pod.Name, pod.Namespace, node.Name)
 	}
-	log.Printf("pod %v/%v is unlucky to fit on node %v\n", pod.Name, pod.Namespace, node.Name)
-	return false, []string{LuckyPredFailMsg}, nil
+	return true, nil, nil
 }
